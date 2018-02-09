@@ -1,0 +1,17 @@
+{
+    "name": "aws-scripts",
+    "version": "1.0.0",
+    "description": "Collection of scripts we use to save time working with AWS",
+    "main": "index.js",
+    "repository": "https://github.com/gunnertech/aws-scripts",
+    "author": "Gunner Technology",
+    "license": "Apache-2.0",
+    "scripts": {
+        "createAccountForOrganization": "node createAccountForOrganization.js"
+    },
+    "dependencies": {
+        "aws-sdk": "^2.191.0",
+        "minimist": "^1.2.0",
+        "sleep-ms": "^2.0.1"
+    }
+}
