@@ -31,7 +31,7 @@ var AWS = require('aws-sdk'),
 
   argv.accountAlias = argv.accountAlias || (argv.accountName||"").toLowerCase();
 
-  console.log(argv)
+
 
 
 const promisify = require('util').promisify,
@@ -41,7 +41,6 @@ const promisify = require('util').promisify,
   iamCreateGroup = promisify(iam.createGroup.bind(iam)),
   iamAttachGroupPolicy = promisify(iam.attachGroupPolicy.bind(iam)),
   iamAddUserToGroup = promisify(iam.addUserToGroup.bind(iam)),
-  iamCreateAccountAlias = promisify(iam.createAccountAlias.bind(iam)),
   iamCreatePolicy = promisify(iam.createPolicy.bind(iam)),
   asyncAppendFile = promisify(fs.appendFile.bind(fs));
 
@@ -191,8 +190,7 @@ async function addUserToGroup(argv) {
 }
 
 async function createAccountAlias(argv) {
-  var credentials = new AWS.SharedIniFileCredentials({profile: argv.profile});
-  AWS.config.credentials = credentials;
+  const iamCreateAccountAlias = promisify(argv.newAccountIam.createAccountAlias.bind(argv.newAccountIam));
 
   try {
     var data = await iamCreateAccountAlias({
@@ -208,6 +206,58 @@ async function createAccountAlias(argv) {
   return {...argv};
 }
 
+async function createUser(argv) {
+  const iamCreateUser = promisify(argv.newAccountIam.createUser.bind(argv.newAccountIam));
+
+  try {
+    var data = await iamCreateUser({
+      UserName: 'awsmobilehub',
+    })
+  } catch (err) {
+    console.log(err, err.stack); 
+    process.exit(1);
+  }
+
+  console.log("Done creating user!");
+
+  return {...argv};
+}
+
+async function attachUserPolicy(argv) {
+  const iamAttachUserPolicy = promisify(argv.newAccountIam.attachUserPolicy.bind(argv.newAccountIam));
+
+  try {
+    var data = await iamAttachUserPolicy({
+      UserName: 'awsmobilehub',
+      PolicyArn: 'arn:aws:iam::aws:policy/AWSMobileHub_FullAccess'
+    })
+  } catch (err) {
+    console.log(err, err.stack); 
+    process.exit(1);
+  }
+
+  console.log("Done attaching policy!");
+
+  return {...argv};
+}
+
+async function createAccessKey(argv) {
+  const iamCreateAccessKey = promisify(argv.newAccountIam.createAccessKey.bind(argv.newAccountIam));
+
+  try {
+    var data = await iamCreateAccessKey({
+      UserName: 'awsmobilehub',
+    })
+  } catch (err) {
+    console.log(err, err.stack); 
+    process.exit(1);
+  }
+
+  console.log("Done creating access key!");
+
+  return {...argv, ...data};
+}
+
 async function writeCredentialsToFile(argv) {
   var credentials = `
 [${argv.accountAlias}developer]
@@ -217,15 +267,51 @@ region = ${argv.region}
 
 `;
   try {
-    var data = await asyncAppendFile(
-      `${process.env['HOME']}/.aws/credentials`, 
-      credentials)
+    var data = await asyncAppendFile( `${process.env['HOME']}/.aws/credentials`, credentials)
   } catch (err) {
     console.log(err, err.stack); 
     process.exit(1);
   }
 
-  console.log(data);
+  argv.profile = `${argv.accountAlias}developer`;
+
+  const newAccountCredentials = new AWS.SharedIniFileCredentials({
+    profile: argv.profile,
+    filename: `${process.env['HOME']}/.aws/credentials`
+  });
+
+  const newAccountIam = new AWS.IAM({credentials: newAccountCredentials, region: argv.region});
+
+  return {...argv, newAccountIam};
+}
+
+async function writeUserCredentialsToFile(argv) {
+  var credentials = `
+[profile ${argv.accountAlias}awsmobilehub]
+aws_access_key_id = ${argv.AccessKey.AccessKeyId}
+aws_secret_access_key = ${argv.AccessKey.SecretAccessKey}
+region = ${argv.region}
+
+`;
+  try {
+    var data = await asyncAppendFile(
+      `${process.env['HOME']}/.aws/credentials`, 
+      credentials
+    )
+  } catch (err) {
+    console.log(err, err.stack); 
+    process.exit(1);
+  }
+
+  try {
+    var data = await asyncAppendFile(
+      `${process.env['HOME']}/.aws/config`, 
+      credentials
+    )
+  } catch (err) {
+    console.log(err, err.stack); 
+    process.exit(1);
+  }
 
   return {...argv};
 }
@@ -238,5 +324,9 @@ createAccount(argv)
   .then(addUserToGroup)
   .then(writeCredentialsToFile)
   .then(createAccountAlias)
+  .then(createUser)
+  .then(attachUserPolicy)
+  .then(createAccessKey)
+  .then(writeUserCredentialsToFile)
   .then(console.log)
   .catch(console.log)
