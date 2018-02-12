@@ -6,33 +6,44 @@
  * yarn install
  * 
  * usage:
- * ./mobile-hub setp -n <project name>
+ * ./mobile-hub setup -n <project name> [-p <aws profile> -r <aws region of codecommit repo> -l <path location>]
  */
 
 const rp = require('request-promise-native'),
+    AWS = require('aws-sdk'),
     fs = require('fs-extra'),
     unzip = require('unzip'),
     awaitWriteStream = require('await-stream-ready').write,
     child_process = require('child_process'),
+    promptly = require('promptly'),
     program = require('commander');
+
+
+
+const promisify = require('util').promisify,
+    fsUnlink = promisify(fs.unlink.bind(fs)),
+    exec = promisify(child_process.exec.bind(child_process)),
+    fsReadFile = promisify(fs.readFile.bind(fs)),
+    fsWriteFile = promisify(fs.writeFile.bind(fs));
 
 program
     .version('0.1.0')
     .command('setup')
     .description('Uses the Gunner Technology starter template to create a react native project for AWS mobile hub')
     .option('-n, --name <name>', 'Name of project')
+    .option('-r, --region [region]', 'AWS Region in which to create the CodeCommit repo', 'us-west-2')
+    .option('-p, --profile [profile]', 'Profile for your Gunner Technology account credentials', 'default')
+    .option('-l, --location [location]', 'Path of the location where the project should be copied after creation', `${process.env['HOME']}/Documents`)
     .action(options => {
         getZipFile(options)
             .then(setupGit)
-            .then(console.log)
+            .then(copyAwsExports)
+            .then(cleanUpAwsExports)
+            .then(setUpRemote)
+            .then(moveProject)
     })
 
 program.parse(process.argv);
-
-const promisify = require('util').promisify,
-    fsUnlink = promisify(fs.unlink.bind(fs)),
-    exec = promisify(child_process.exec.bind(child_process))
-fsWriteFile = promisify(fs.writeFile.bind(fs));
 
 async function writeZip(file, path = './') {
     const rs = fs.createReadStream(file);
@@ -59,6 +70,79 @@ async function getZipFile(options) {
 }
 
 async function setupGit(options) {
-    console.log(options.name)
-    return exec(`cd ${options.name} && git init && git add .; git commit -am "first commit" && cd awsmobile/client && yarn install`);
+    await exec(`cd ${options.name} && git init && git add .; git commit -am "first commit" && cd awsmobile/client && yarn install && cd ../../../`);
+    console.log(`
+    Please paste this link into a browser: https://console.aws.amazon.com/mobilehub/home?region=us-east-1#/starterkit/?config=https://github.com/awslabs/aws-mobile-react-native-starter/blob/master/backend/import_mobilehub/reactnative-starter.zip&app=react-native
+    Use ${options.name} in the project name field, then click next and next again (you'll have to wait for the project to setup).
+    Finally, ignore the setup instructions and just download the aws-exports.js file.
+    `)
+
+    console.log("Done Setting Up Git...");
+    return options;
+}
+
+
+async function copyAwsExports(options) {
+    const location = await promptly.prompt(`Please enter the location of the aws-exports.js (default is ${process.env['HOME']}/Downloads): `, {
+        default: `${process.env['HOME']}/Downloads`,
+        trim: true
+    });
+    fs.moveSync(`${location}/aws-exports.js`, `./${options.name}/awsmobile/client/src/aws-exports.js`);
+    console.log(`
+    from another terminal, please run "awsmobile init" from ./${options.name}/awsmobile/client
+    use ${options.name} for the project name.
+    You'll see "missing aws account settings" select "Y" and paste in the credentials from the IAM mobilehub user created during account setup.
+    `);
+    const answer = await promptly.confirm('Finished initing? (y/n)');
+    await exec(`cd ${options.name} && git checkout . && cd ../`);
+
+    console.log("Copying AWS Exports...");
+    return options;
+}
+
+async function cleanUpAwsExports(options) {
+    const file = `./${options.name}/awsmobile/client/awsmobilejs/backend/mobile-hub-project.yml`;
+    const data = await fsReadFile(file);
+
+    // console.log(data.toString())
+
+    await fsWriteFile(file, data.toString().replace(/client\-2018\-02\-11\-20\-09\-09/g, options.name), 'utf8');
+
+    console.log(`
+    From another terminal, please run "awsmobile push" from ./${options.name}/awsmobile/client
+    (it's going to ask you to setup credentials again. Do the same thing as before)
+    `);
+    const answer = await promptly.confirm('Finished pushing? (y/n)');
+
+    console.log("Done Cleaning up AWS Exports...");
+    return options;
+}
+
+async function setUpRemote(options) {
+    const codecommit = new AWS.CodeCommit({
+        credentials: new AWS.SharedIniFileCredentials({
+            profile: options.profile,
+            filename: `${process.env['HOME']}/.aws/credentials`
+        }),
+        region: options.region
+    });
+
+    const createRepository = promisify(codecommit.createRepository.bind(codecommit));
+
+    const resp = await createRepository({
+        repositoryName: options.name,
+        repositoryDescription: `AWS Mobile Hub Repository for ${options.name}`
+    });
+
+    await exec(`cd ${options.name} && git remote add origin ${resp.repositoryMetadata.cloneUrlSsh} && git push -u origin master && cd ..`);
+
+    console.log("Done setting up remote...");
+
+    return options;
+}
+
+async function moveProject(options) {
+    fs.moveSync(`./${options.name}`, `${options.location}/${options.name}`);
+
+    return options;
 }

@@ -17,6 +17,7 @@
         "fs-extra": "^5.0.0",
         "minimist": "^1.2.0",
         "node-zip": "^1.1.1",
+        "promptly": "^3.0.3",
         "request": "^2.83.0",
         "request-promise-native": "^1.0.5",
         "sleep-ms": "^2.0.1",
