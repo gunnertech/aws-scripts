@@ -1,0 +1,64 @@
+#!/usr/bin/env node
+
+/****
+ * 
+ * setup:
+ * yarn install
+ * 
+ * usage:
+ * ./mobile-hub setp -n <project name>
+ */
+
+const rp = require('request-promise-native'),
+    fs = require('fs-extra'),
+    unzip = require('unzip'),
+    awaitWriteStream = require('await-stream-ready').write,
+    child_process = require('child_process'),
+    program = require('commander');
+
+program
+    .version('0.1.0')
+    .command('setup')
+    .description('Uses the Gunner Technology starter template to create a react native project for AWS mobile hub')
+    .option('-n, --name <name>', 'Name of project')
+    .action(options => {
+        getZipFile(options)
+            .then(setupGit)
+            .then(console.log)
+    })
+
+program.parse(process.argv);
+
+const promisify = require('util').promisify,
+    fsUnlink = promisify(fs.unlink.bind(fs)),
+    exec = promisify(child_process.exec.bind(child_process))
+fsWriteFile = promisify(fs.writeFile.bind(fs));
+
+async function writeZip(file, path = './') {
+    const rs = fs.createReadStream(file);
+    const p = new Promise((resolve, reject) => {
+        rs.on('end', () => setTimeout(resolve, 2000));
+        rs.on('error', () => reject());
+    })
+
+    rs.pipe(unzip.Extract({ path: './' }));
+
+    return p;
+}
+
+async function getZipFile(options) {
+    const response = await rp({
+        url: 'https://github.com/gunnertech/react-native-mobile-hub-starter/archive/master.zip',
+        encoding: null
+    });
+    await fsWriteFile("./react-native-mobile-hub-starter.zip", response);
+    await writeZip('./react-native-mobile-hub-starter.zip');
+    fs.moveSync('./react-native-mobile-hub-starter-master', `./${options.name}`);
+    await fsUnlink("./react-native-mobile-hub-starter.zip");
+    return options;
+}
+
+async function setupGit(options) {
+    console.log(options.name)
+    return exec(`cd ${options.name} && git init && git add .; git commit -am "first commit" && cd awsmobile/client && yarn install`);
+}
