@@ -18,10 +18,9 @@ const rp = require('request-promise-native'),
     promptly = require('promptly'),
     program = require('commander');
 
-
-
 const promisify = require('util').promisify,
     fsUnlink = promisify(fs.unlink.bind(fs)),
+    fsRemove = promisify(fs.remove.bind(fs)),
     exec = promisify(child_process.exec.bind(child_process)),
     fsReadFile = promisify(fs.readFile.bind(fs)),
     fsWriteFile = promisify(fs.writeFile.bind(fs));
@@ -72,47 +71,39 @@ async function getZipFile(options) {
 async function setupGit(options) {
     await exec(`cd ${options.name} && git init && git add .; git commit -am "first commit" && cd awsmobile/client && yarn install && cd ../../../`);
     console.log(`
-    Please paste this link into a browser: https://console.aws.amazon.com/mobilehub/home?region=us-east-1#/starterkit/?config=https://github.com/awslabs/aws-mobile-react-native-starter/blob/master/backend/import_mobilehub/reactnative-starter.zip&app=react-native
-    Use ${options.name} in the project name field, then click next and next again (you'll have to wait for the project to setup).
-    Finally, ignore the setup instructions and just download the aws-exports.js file.
-    `)
+    from another terminal outside of this project, please run:
+    
+    cd ${process.env['HOME']} && awsmobile start ${options.name}-temp react-native
+    
+    You'll see "missing aws account settings" select "Y" and paste in the credentials from the IAM mobilehub user created during account setup.
 
+    When asked for project name, make sure to use: ${options.name}
+    `);
+    const answer = await promptly.confirm('Finished setting up project? (y/n)');
     console.log("Done Setting Up Git...");
     return options;
 }
 
 
 async function copyAwsExports(options) {
-    const location = await promptly.prompt(`Please enter the location of the aws-exports.js (default is ${process.env['HOME']}/Downloads): `, {
-        default: `${process.env['HOME']}/Downloads`,
-        trim: true
-    });
-    fs.moveSync(`${location}/aws-exports.js`, `./${options.name}/awsmobile/client/src/aws-exports.js`);
-    console.log(`
-    from another terminal, please run "awsmobile init" from ./${options.name}/awsmobile/client
-    use ${options.name} for the project name.
-    You'll see "missing aws account settings" select "Y" and paste in the credentials from the IAM mobilehub user created during account setup.
-    `);
-    const answer = await promptly.confirm('Finished initing? (y/n)');
-    await exec(`cd ${options.name} && git checkout . && cd ../`);
+    const location = `${process.env['HOME']}/${options.name}-temp`;
+    fs.copySync(`${location}/src/aws-exports.js`, `./${options.name}/awsmobile/client/src/aws-exports.js`);
+    fs.copySync(`${location}/awsmobilejs/.awsmobile/info`, `./${options.name}/awsmobile/client/awsmobilejs/.awsmobile/info`);
 
-    console.log("Copying AWS Exports...");
+    await fsRemove(`${process.env['HOME']}/${options.name}-temp`);
+
+    console.log("Done Copying AWS Exports...");
     return options;
 }
+
 
 async function cleanUpAwsExports(options) {
     const file = `./${options.name}/awsmobile/client/awsmobilejs/backend/mobile-hub-project.yml`;
     const data = await fsReadFile(file);
 
-    // console.log(data.toString())
-
     await fsWriteFile(file, data.toString().replace(/client\-2018\-02\-11\-20\-09\-09/g, options.name), 'utf8');
 
-    console.log(`
-    From another terminal, please run "awsmobile push" from ./${options.name}/awsmobile/client
-    (it's going to ask you to setup credentials again. Do the same thing as before)
-    `);
-    const answer = await promptly.confirm('Finished pushing? (y/n)');
+    await exec(`cd ${options.name}/awsmobile/client && awsmobile push`)
 
     console.log("Done Cleaning up AWS Exports...");
     return options;
@@ -121,10 +112,10 @@ async function cleanUpAwsExports(options) {
 async function setUpRemote(options) {
     const codecommit = new AWS.CodeCommit({
         credentials: new AWS.SharedIniFileCredentials({
-            profile: options.profile,
+            profile: 'default',
             filename: `${process.env['HOME']}/.aws/credentials`
         }),
-        region: options.region
+        region: 'us-east-1'
     });
 
     const createRepository = promisify(codecommit.createRepository.bind(codecommit));
