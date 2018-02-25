@@ -33,11 +33,14 @@ program
     .option('-r, --region [region]', 'AWS Region in which to create the CodeCommit repo', 'us-west-2')
     .option('-p, --profile [profile]', 'Profile for your Gunner Technology account credentials', 'default')
     .option('-l, --location [location]', 'Path of the location where the project should be copied after creation', `${process.env['HOME']}/Documents`)
+    .option('-m, --mobile-hub-profile <mobileHubProfile>', 'Name of the profile used for the mobile hub project')
+    .option('-g, --mobile-hub-region <mobileHubRegion>', 'Name of the region used for the mobile hub project', 'us-east-1')
     .action(options => {
         getZipFile(options)
             .then(setupGit)
             .then(copyAwsExports)
             .then(cleanUpAwsExports)
+            .then(attachCognitoPolicyToAuthRole)
             .then(setUpRemote)
             .then(moveProject)
     })
@@ -109,13 +112,40 @@ async function cleanUpAwsExports(options) {
     return options;
 }
 
+async function attachCognitoPolicyToAuthRole(options) {
+    const file = `./${options.name}/awsmobile/client/awsmobilejs/#current-backend-info/backend-details.json`;
+    const file = './backend-details.json';
+    const data = await fsReadFile(file);
+    const json = JSON.parse(data);
+
+    const role = json.resources.find(resource => resource.name.match(/[^_]+_auth_MOBILEHUB_\d+/));
+
+    const iam = new AWS.IAM({
+        credentials: new AWS.SharedIniFileCredentials({
+            profile: options.mobileHubProfile,
+            filename: `${process.env['HOME']}/.aws/credentials`
+        }),
+        region: options.mobileHubRegion
+    });
+
+    const attachRolePolicy = promisify(iam.attachRolePolicy.bind(iam));
+
+    await attachRolePolicy({
+        PolicyArn: 'arn:aws:iam::aws:policy/AmazonCognitoReadOnly',
+        RoleName: role.name
+    })
+
+    return options;
+
+}
+
 async function setUpRemote(options) {
     const codecommit = new AWS.CodeCommit({
         credentials: new AWS.SharedIniFileCredentials({
-            profile: 'default',
+            profile: options.profile,
             filename: `${process.env['HOME']}/.aws/credentials`
         }),
-        region: 'us-east-1'
+        region: options.region
     });
 
     const createRepository = promisify(codecommit.createRepository.bind(codecommit));
