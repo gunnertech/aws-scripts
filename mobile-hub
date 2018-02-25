@@ -6,7 +6,7 @@
  * yarn install
  * 
  * usage:
- * ./mobile-hub setup -n <project name> [-p <aws profile> -r <aws region of codecommit repo> -l <path location>]
+ * ./mobile-hub setup -n <project name> -m <mobileHubProfile> [-p <aws profile> -r <aws region of codecommit repo> -l <path location> -g <aws region for mobile hub project>]
  */
 
 const rp = require('request-promise-native'),

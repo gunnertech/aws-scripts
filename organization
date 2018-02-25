@@ -1,0 +1,341 @@
+#!/usr/bin/env node
+
+/****
+ * 
+ * setup:
+ * yarn install
+ * 
+ * usage:
+ * ./organization add -n <name> -e <email> -u <username> [-r <region> -p <profile>]
+ */
+
+const rp = require('request-promise-native'),
+    AWS = require('aws-sdk'),
+    fs = require('fs-extra'),
+    unzip = require('unzip'),
+    awaitWriteStream = require('await-stream-ready').write,
+    child_process = require('child_process'),
+    promptly = require('promptly'),
+    program = require('commander'),
+    promisify = require('util').promisify,
+    sleepms = require('sleep-ms');
+
+program
+    .version('0.1.0')
+    .command('add')
+    .description('Creates a new AWS account and adds it to the Gunner Technology organization as a child of the root account')
+    .option('-n, --account-name <accountName>', 'Name of account to create')
+    .option('-r, --region [region]', 'AWS Region in which to create the new account', 'us-east-1')
+    .option('-p, --source-profile [sourceProfile]', 'Profile for your Gunner Technology account credentials', 'default')
+    .option('-e, --email <email>', 'Email address to use for the new account created')
+    .option('-u, --username <username>', 'The username for your IAM account for the Gunner Technology account')
+    .action(options => {
+        options.accountAlias = options.accountAlias || (options.accountName || "").toLowerCase();
+
+        // console.log(options)
+
+        const iam = new AWS.IAM({
+            credentials: new AWS.SharedIniFileCredentials({
+                profile: options.sourceProfile,
+                filename: `${process.env['HOME']}/.aws/credentials`
+            }),
+            region: options.region
+        });
+
+        const organizations = new AWS.Organizations({
+            credentials: new AWS.SharedIniFileCredentials({
+                profile: options.sourceProfile,
+                filename: `${process.env['HOME']}/.aws/credentials`
+            }),
+            region: options.region
+        });
+
+        const organizationsDescribeOrganization = promisify(organizations.describeOrganization.bind(organizations)),
+            organizationsCreateAccount = promisify(organizations.createAccount.bind(organizations)),
+            organizationsDescribeCreateAccountStatus = promisify(organizations.describeCreateAccountStatus.bind(organizations)),
+            iamCreateGroup = promisify(iam.createGroup.bind(iam)),
+            iamAttachGroupPolicy = promisify(iam.attachGroupPolicy.bind(iam)),
+            iamAddUserToGroup = promisify(iam.addUserToGroup.bind(iam)),
+            iamCreatePolicy = promisify(iam.createPolicy.bind(iam)),
+            asyncAppendFile = promisify(fs.appendFile.bind(fs));
+
+
+        async function getRootAccountId(argv) {
+            try {
+                var data = await organizationsDescribeOrganization({});
+            } catch (err) {
+                console.log(err, err.stack);
+                process.exit(1);
+            }
+
+            const rootAccountId = data.Organization.MasterAccountArn.split(':')[4]
+
+            return {...argv, rootAccountId };
+        }
+
+        async function createAccount(argv) {
+            var accountStatus = null;
+            var creationStatusId = null;
+            var accountId = null;
+
+            var { accountName, email } = argv;
+            var roleName = `${accountName.replace(/ /,'')}OrganizationAccountAccessRole`;
+
+            var ticks = "...";
+
+            try {
+                var data = await organizationsCreateAccount({
+                    AccountName: accountName,
+                    Email: email,
+                    RoleName: roleName
+                });
+
+                creationStatusId = data.CreateAccountStatus.Id;
+
+                while (accountStatus !== 'SUCCEEDED') {
+                    console.log("Creating Account" + (ticks += "."));
+                    console.log(accountStatus);
+                    var data = await organizationsDescribeCreateAccountStatus({
+                        CreateAccountRequestId: creationStatusId
+                    });
+                    creationStatusId = data.CreateAccountStatus.Id;
+                    accountStatus = data.CreateAccountStatus.State;
+                    accountId = data.CreateAccountStatus.AccountId;
+                    sleepms(3000);
+                }
+            } catch (err) {
+                console.log(err, err.stack);
+                process.exit(1);
+            }
+
+            console.log("Done creating account!");
+
+            return {...argv, roleName, accountId };
+        }
+
+        async function createGroup(argv) {
+            var groupName = `${argv.accountName}Admins`;
+
+            try {
+                var data = await iamCreateGroup({
+                    GroupName: groupName,
+                })
+            } catch (err) {
+                console.log(err, err.stack);
+                process.exit(1);
+            }
+
+            console.log("Done creating group!");
+
+            return {...argv, groupName };
+        }
+
+        async function createPolicy(argv) {
+            var policyName = `${argv.accountName}Access`,
+                policyArn = `arn:aws:iam::${argv.rootAccountId}:policy/${policyName}`,
+                policyDocument = {
+                    "Version": "2012-10-17",
+                    "Statement": [{
+                        "Effect": "Allow",
+                        "Action": [
+                            "sts:AssumeRole"
+                        ],
+                        "Resource": [
+                            `arn:aws:iam::${argv.accountId}:role/${argv.roleName}`
+                        ]
+                    }]
+                }
+
+            try {
+                var data = await iamCreatePolicy({
+                    PolicyDocument: JSON.stringify(policyDocument),
+                    PolicyName: policyName,
+                })
+            } catch (err) {
+                console.log(err, err.stack);
+                process.exit(1);
+            }
+
+            console.log("Done creating policy!");
+
+            return {...argv, policyArn };
+        }
+
+        async function attachGroupPolicy(argv) {
+            try {
+                var data = await iamAttachGroupPolicy({
+                    GroupName: argv.groupName,
+                    PolicyArn: argv.policyArn,
+                })
+            } catch (err) {
+                console.log(err, err.stack);
+                process.exit(1);
+            }
+
+            console.log("Done attaching policy to group!");
+
+            return {...argv };
+        }
+
+        async function addUserToGroup(argv) {
+            try {
+                var data = await iamAddUserToGroup({
+                    GroupName: argv.groupName,
+                    UserName: argv.username,
+                })
+            } catch (err) {
+                console.log(err, err.stack);
+                process.exit(1);
+            }
+
+            console.log("Done adding user to group!");
+
+            return {...argv };
+        }
+
+        async function createAccountAlias(argv) {
+            const iamCreateAccountAlias = promisify(argv.newAccountIam.createAccountAlias.bind(argv.newAccountIam));
+
+            try {
+                var data = await iamCreateAccountAlias({
+                    AccountAlias: argv.accountAlias,
+                })
+            } catch (err) {
+                console.log(err, err.stack);
+                process.exit(1);
+            }
+
+            console.log("Done creating account alias!");
+
+            return {...argv };
+        }
+
+        async function createUser(argv) {
+            const iamCreateUser = promisify(argv.newAccountIam.createUser.bind(argv.newAccountIam));
+
+            try {
+                var data = await iamCreateUser({
+                    UserName: 'awsmobilehub',
+                })
+            } catch (err) {
+                console.log(err, err.stack);
+                process.exit(1);
+            }
+
+            console.log("Done creating user!");
+
+            return {...argv };
+        }
+
+        async function attachUserPolicy(argv) {
+            const iamAttachUserPolicy = promisify(argv.newAccountIam.attachUserPolicy.bind(argv.newAccountIam));
+
+            try {
+                var data = await iamAttachUserPolicy({
+                    UserName: 'awsmobilehub',
+                    PolicyArn: 'arn:aws:iam::aws:policy/AWSMobileHub_FullAccess'
+                })
+            } catch (err) {
+                console.log(err, err.stack);
+                process.exit(1);
+            }
+
+            console.log("Done attaching policy!");
+
+            return {...argv };
+        }
+
+        async function createAccessKey(argv) {
+            const iamCreateAccessKey = promisify(argv.newAccountIam.createAccessKey.bind(argv.newAccountIam));
+
+            try {
+                var data = await iamCreateAccessKey({
+                    UserName: 'awsmobilehub',
+                })
+            } catch (err) {
+                console.log(err, err.stack);
+                process.exit(1);
+            }
+
+            console.log("Done creating access key!");
+
+            return {...argv, ...data };
+        }
+
+        async function writeCredentialsToFile(argv) {
+            var credentials = `
+[${argv.accountAlias}developer]
+role_arn = arn:aws:iam::${argv.accountId}:role/${argv.roleName}
+source_profile = ${argv.sourceProfile}
+region = ${argv.region}
+
+`;
+            try {
+                var data = await asyncAppendFile(`${process.env['HOME']}/.aws/credentials`, credentials)
+            } catch (err) {
+                console.log(err, err.stack);
+                process.exit(1);
+            }
+
+            argv.profile = `${argv.accountAlias}developer`;
+
+            const newAccountCredentials = new AWS.SharedIniFileCredentials({
+                profile: argv.profile,
+                filename: `${process.env['HOME']}/.aws/credentials`
+            });
+
+            console.log()
+
+            const newAccountIam = new AWS.IAM({ credentials: newAccountCredentials });
+
+            return {...argv, newAccountIam };
+        }
+
+        async function writeUserCredentialsToFile(argv) {
+            var credentials = `
+[profile ${argv.accountAlias}awsmobilehub]
+aws_access_key_id = ${argv.AccessKey.AccessKeyId}
+aws_secret_access_key = ${argv.AccessKey.SecretAccessKey}
+region = ${argv.region}
+
+`;
+            try {
+                var data = await asyncAppendFile(
+                    `${process.env['HOME']}/.aws/credentials`,
+                    credentials
+                )
+            } catch (err) {
+                console.log(err, err.stack);
+                process.exit(1);
+            }
+
+            try {
+                var data = await asyncAppendFile(
+                    `${process.env['HOME']}/.aws/config`,
+                    credentials
+                )
+            } catch (err) {
+                console.log(err, err.stack);
+                process.exit(1);
+            }
+
+            return {...argv };
+        }
+
+        createAccount(options)
+            .then(getRootAccountId)
+            .then(createPolicy)
+            .then(createGroup)
+            .then(attachGroupPolicy)
+            .then(addUserToGroup)
+            .then(writeCredentialsToFile)
+            .then(createAccountAlias)
+            .then(createUser)
+            .then(attachUserPolicy)
+            .then(createAccessKey)
+            .then(writeUserCredentialsToFile)
+            .then(console.log)
+            .catch(console.log);
+    })
+
+program.parse(process.argv);
