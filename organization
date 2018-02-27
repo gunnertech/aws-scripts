@@ -9,6 +9,9 @@
  * ./organization add -n <name> -e <email> -u <username> [-r <region> -p <profile>]
  */
 
+const delay = (t, v) =>
+    new Promise(resolve => setTimeout(resolve.bind(null, v), t))
+
 const rp = require('request-promise-native'),
     AWS = require('aws-sdk'),
     fs = require('fs-extra'),
@@ -190,11 +193,15 @@ program
 
             console.log("Done adding user to group!");
 
+            await delay(10000)
+
             return {...argv };
         }
 
         async function createAccountAlias(argv) {
             const iamCreateAccountAlias = promisify(argv.newAccountIam.createAccountAlias.bind(argv.newAccountIam));
+
+            await delay(10000)
 
             try {
                 var data = await iamCreateAccountAlias({
@@ -279,21 +286,27 @@ region = ${argv.region}
 
             argv.profile = `${argv.accountAlias}developer`;
 
-            const newAccountCredentials = new AWS.SharedIniFileCredentials({
-                profile: argv.profile,
-                filename: `${process.env['HOME']}/.aws/credentials`
+            // const newAccountCredentials = new AWS.SharedIniFileCredentials({
+            //     profile: argv.profile,
+            //     filename: `${process.env['HOME']}/.aws/credentials`
+            // });
+
+            const newAccountIam = new AWS.IAM({
+                credentials: new AWS.SharedIniFileCredentials({
+                    profile: argv.profile,
+                    filename: `${process.env['HOME']}/.aws/credentials`
+                }),
+                region: options.region
             });
 
-            console.log()
-
-            const newAccountIam = new AWS.IAM({ credentials: newAccountCredentials });
+            // const newAccountIam = new AWS.IAM({ credentials: newAccountCredentials });
 
             return {...argv, newAccountIam };
         }
 
         async function writeUserCredentialsToFile(argv) {
             var credentials = `
-[profile ${argv.accountAlias}awsmobilehub]
+[${argv.accountAlias}awsmobilehub]
 aws_access_key_id = ${argv.AccessKey.AccessKeyId}
 aws_secret_access_key = ${argv.AccessKey.SecretAccessKey}
 region = ${argv.region}
@@ -334,7 +347,7 @@ region = ${argv.region}
             .then(attachUserPolicy)
             .then(createAccessKey)
             .then(writeUserCredentialsToFile)
-            .then(console.log)
+            .then(() => console.log("FINISHED"))
             .catch(console.log);
     })
 
