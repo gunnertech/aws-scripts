@@ -114,7 +114,7 @@ async function cleanUpAwsExports(options) {
 
 async function attachCognitoPolicyToAuthRole(options) {
     const file = `./${options.name}/awsmobile/client/awsmobilejs/#current-backend-info/backend-details.json`;
-    const file = './backend-details.json';
+    // const file = './backend-details.json';
     const data = await fsReadFile(file);
     const json = JSON.parse(data);
 

@@ -241,7 +241,19 @@ program
                 var data = await iamAttachUserPolicy({
                     UserName: 'awsmobilehub',
                     PolicyArn: 'arn:aws:iam::aws:policy/AWSMobileHub_FullAccess'
-                })
+                });
+                var data = await iamAttachUserPolicy({
+                    UserName: 'awsmobilehub',
+                    PolicyArn: 'arn:aws:iam::aws:policy/IAMFullAccess'
+                });
+                var data = await iamAttachUserPolicy({
+                    UserName: 'awsmobilehub',
+                    PolicyArn: 'arn:aws:iam::aws:policy/AWSLambdaFullAccess'
+                });
+                var data = await iamAttachUserPolicy({
+                    UserName: 'awsmobilehub',
+                    PolicyArn: 'arn:aws:iam::aws:policy/AWSLambdaExecute'
+                });
             } catch (err) {
                 console.log(err, err.stack);
                 process.exit(1);
