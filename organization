@@ -289,6 +289,15 @@ source_profile = ${argv.sourceProfile}
 region = ${argv.region}
 
 `;
+
+            var configData = `
+[${argv.accountAlias}developer]
+role_arn = arn:aws:iam::${argv.accountId}:role/${argv.roleName}
+source_profile = ${argv.sourceProfile}
+region = ${argv.region}
+
+`;
+
             try {
                 var data = await asyncAppendFile(`${process.env['HOME']}/.aws/credentials`, credentials)
             } catch (err) {
@@ -296,12 +305,14 @@ region = ${argv.region}
                 process.exit(1);
             }
 
-            argv.profile = `${argv.accountAlias}developer`;
+            try {
+                var data = await asyncAppendFile(`${process.env['HOME']}/.aws/config`, configData)
+            } catch (err) {
+                console.log(err, err.stack);
+                process.exit(1);
+            }
 
-            // const newAccountCredentials = new AWS.SharedIniFileCredentials({
-            //     profile: argv.profile,
-            //     filename: `${process.env['HOME']}/.aws/credentials`
-            // });
+            argv.profile = `${argv.accountAlias}developer`;
 
             const newAccountIam = new AWS.IAM({
                 credentials: new AWS.SharedIniFileCredentials({
@@ -311,14 +322,20 @@ region = ${argv.region}
                 region: options.region
             });
 
-            // const newAccountIam = new AWS.IAM({ credentials: newAccountCredentials });
-
             return {...argv, newAccountIam };
         }
 
         async function writeUserCredentialsToFile(argv) {
             var credentials = `
 [${argv.accountAlias}awsmobilehub]
+aws_access_key_id = ${argv.AccessKey.AccessKeyId}
+aws_secret_access_key = ${argv.AccessKey.SecretAccessKey}
+region = ${argv.region}
+
+`;
+
+            var configData = `
+[profile ${argv.accountAlias}awsmobilehub]
 aws_access_key_id = ${argv.AccessKey.AccessKeyId}
 aws_secret_access_key = ${argv.AccessKey.SecretAccessKey}
 region = ${argv.region}
@@ -337,7 +354,7 @@ region = ${argv.region}
             try {
                 var data = await asyncAppendFile(
                     `${process.env['HOME']}/.aws/config`,
-                    credentials
+                    configData
                 )
             } catch (err) {
                 console.log(err, err.stack);
@@ -359,7 +376,7 @@ region = ${argv.region}
             .then(attachUserPolicy)
             .then(createAccessKey)
             .then(writeUserCredentialsToFile)
-            .then(() => console.log("FINISHED"))
+            .then(() => console.log(`Your account has been created. If you plan on using mobile hub, log into the new account using the role created and go to this url: https://console.aws.amazon.com/mobilehub/home?#/activaterole/`))
             .catch(console.log);
     })
 

@@ -33,7 +33,8 @@ program
     .option('-r, --region [region]', 'AWS Region in which to create the CodeCommit repo', 'us-west-2')
     .option('-p, --profile [profile]', 'Profile for your Gunner Technology account credentials', 'default')
     .option('-l, --location [location]', 'Path of the location where the project should be copied after creation', `${process.env['HOME']}/Documents`)
-    .option('-m, --mobile-hub-profile <mobileHubProfile>', 'Name of the profile used for the mobile hub project')
+    .option('-m, --mobile-hub-profile <mobileHubProfile>', 'Name of the IAM user used for the mobile hub project')
+    .option('-o, --role <role>', 'Name of the IAM role used for the mobile hub project')
     .option('-g, --mobile-hub-region <mobileHubRegion>', 'Name of the region used for the mobile hub project', 'us-east-1')
     .action(options => {
         getZipFile(options)
@@ -71,29 +72,38 @@ async function getZipFile(options) {
     return options;
 }
 
-async function setupGit(options) {
-    await exec(`cd ${options.name} && git init && git add .; git commit -am "first commit" && cd awsmobile/client && yarn install && cd ../../../`);
-    console.log(`
-    from another terminal outside of this project, please run:
-    
-    cd ${process.env['HOME']} && awsmobile start ${options.name}-temp react-native
-    
-    You'll see "missing aws account settings" select "Y" and paste in the credentials from the IAM mobilehub user created during account setup.
+// cd ${process.env['HOME']} && awsmobile  ${options.name}-temp react-native
+// You'll see "missing aws account settings" select "Y" and paste in the credentials from the IAM mobilehub user created during account setup.
 
-    When asked for project name, make sure to use: ${options.name}
-    `);
-    const answer = await promptly.confirm('Finished setting up project? (y/n)');
+
+async function setupGit(options) {
+    console.log("Setting Up Git...");
+    await exec(`cd ${options.name} && git init && git add .; git commit -am "first commit" && cd awsmobile/client && yarn install && cd ../../../`);
     console.log("Done Setting Up Git...");
+    console.log("Configuring aws account...");
+    await exec(`awsmobile configure aws -p ${options.mobileHubProfile}`);
+    console.log("Done configuring aws account...");
+    console.log("Creating the project backend...");
+    await exec(`awsmobile start ${options.name}-temp react-native --yes`);
+    //     console.log(`
+    // from another terminal outside of this project, please run:
+
+    // awsmobile start ${options.name}-temp react-native --yes
+    //     `);
+
+    //     const answer = await promptly.confirm('Finished setting up project? (y/n)');
+    console.log("Done Creating the project backend...");
+
     return options;
 }
 
 
 async function copyAwsExports(options) {
-    const location = `${process.env['HOME']}/${options.name}-temp`;
+    const location = `./${options.name}-temp`;
     fs.copySync(`${location}/src/aws-exports.js`, `./${options.name}/awsmobile/client/src/aws-exports.js`);
     fs.copySync(`${location}/awsmobilejs/.awsmobile/info`, `./${options.name}/awsmobile/client/awsmobilejs/.awsmobile/info`);
 
-    await fsRemove(`${process.env['HOME']}/${options.name}-temp`);
+    await fsRemove(`${location}`);
 
     console.log("Done Copying AWS Exports...");
     return options;
@@ -122,7 +132,7 @@ async function attachCognitoPolicyToAuthRole(options) {
 
     const iam = new AWS.IAM({
         credentials: new AWS.SharedIniFileCredentials({
-            profile: options.mobileHubProfile,
+            profile: options.role,
             filename: `${process.env['HOME']}/.aws/credentials`
         }),
         region: options.mobileHubRegion
