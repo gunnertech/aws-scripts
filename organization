@@ -6,8 +6,14 @@
  * yarn install
  * 
  * usage:
- * ./organization add -n <name> -e <email> -u <username> [-r <region> -p <profile>]
+ * ./organization add -n <name> -e <email> -u <username> [-r <region> -p <profile> -g groupname -a <accountid>]
  */
+
+function sleep(ms){
+    return new Promise(resolve=>{
+        setTimeout(resolve,ms)
+    })
+}
 
 const delay = (t, v) =>
     new Promise(resolve => setTimeout(resolve.bind(null, v), t))
@@ -33,10 +39,11 @@ program
     .option('-e, --email <email>', 'Email address to use for the new account created')
     .option('-u, --username <username>', 'The username for your IAM account for the Gunner Technology account')
     .option('-g, --group-name <groupname>', 'The name of an existing group in the root account')
+    .option('-a, --account-id <accountid>', 'Optional - if passed will add this account to the organization and not created it.')
     .action(options => {
         options.accountAlias = options.accountAlias || (options.accountName || "").toLowerCase();
         options.groupName = options.groupName || `${options.accountName}Admins`
-
+        // 080329606386
         // console.log(options)
 
         const iam = new AWS.IAM({
@@ -80,12 +87,20 @@ program
         }
 
         async function createAccount(argv) {
-            var accountStatus = null;
-            var creationStatusId = null;
-            var accountId = null;
-
             var { accountName, email } = argv;
             var roleName = `${accountName.replace(/ /,'')}OrganizationAccountAccessRole`;
+            var accountId = argv.accountId;
+            var accountStatus = null;
+            var creationStatusId = null;
+
+            if(accountId) {
+                return {...argv, roleName, accountId };
+            }
+            
+            
+
+            
+            
 
             var ticks = "...";
 
@@ -97,7 +112,7 @@ program
                 });
 
                 creationStatusId = data.CreateAccountStatus.Id;
-
+                await sleep(5000);
                 while (accountStatus !== 'SUCCEEDED') {
                     console.log("Creating Account" + (ticks += "."));
                     console.log(accountStatus);
@@ -107,11 +122,11 @@ program
                     creationStatusId = data.CreateAccountStatus.Id;
                     accountStatus = data.CreateAccountStatus.State;
                     accountId = data.CreateAccountStatus.AccountId;
-                    sleepms(3000);
+                    await sleep(5000);
                 }
             } catch (err) {
                 console.log(err, err.stack);
-                process.exit(1);
+                // process.exit(1);
             }
 
             console.log("Done creating account!");
