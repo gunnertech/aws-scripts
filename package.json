@@ -10,17 +10,8 @@
         "createAccountForOrganization": "node createAccountForOrganization.js"
     },
     "dependencies": {
-        "await-stream-ready": "^1.0.1",
         "aws-sdk": "^2.191.0",
-        "child_process": "^1.0.2",
         "commander": "^2.14.1",
-        "fs-extra": "^5.0.0",
-        "minimist": "^1.2.0",
-        "node-zip": "^1.1.1",
-        "promptly": "^3.0.3",
-        "request": "^2.83.0",
-        "request-promise-native": "^1.0.5",
-        "sleep-ms": "^2.0.1",
-        "unzip": "^0.1.11"
+        "fs-extra": "^5.0.0"
     }
 }
