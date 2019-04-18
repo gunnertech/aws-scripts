@@ -20,4 +20,5 @@ $ ./organization add -o <client-name> -n <project-name>-prod -e <project-name>-p
 ## Project 
 ````
 $ ./project <project-name> <client-name> <developer-name> (destination)
+# open up that project's README.md and finish the job!
 ````
