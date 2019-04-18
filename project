@@ -1,0 +1,19 @@
+#!/bin/bash
+# ./project.sh <project-name> <client-name> <developer-name> (destination)
+export LC_CTYPE=C 
+export LANG=C
+
+set -e
+IFS='|'
+PROJECT=$1
+CLIENT=$2
+DEVELOPER=$3
+DESTINATION=$4
+: ${DESTINATION:=~/workspace/javascript/severless}
+
+git clone --single-branch -b amplify-template git@github.com:gunnertech/aws-severless-react-template.git $PROJECT
+curl -o ./$PROJECT/.git/config https://gist.githubusercontent.com/CodySwannGT/ea1dcb937426d8121576b59334000d58/raw/544e9b6c879dc51828b9124cc22265e4675b41c9/config.txt
+find ./$PROJECT/.git/ -type f -print0 | xargs -0 sed -i "" "s/<developer-name>/$DEVELOPER/g"
+find ./$PROJECT -type f -print0 | xargs -0 sed -i "" "s/<project-name>/$PROJECT/g"
+find ./$PROJECT -type f -print0 | xargs -0 sed -i "" "s/<client-name>/$CLIENT/g"
+# mkdir -p $2

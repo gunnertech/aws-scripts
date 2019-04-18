@@ -6,9 +6,9 @@
  * yarn install
  * 
  * usage:
- * ./organization add -n <accountName> -o <organizational-unit-name> -e <email> -u <username> [-r <region> -p <profile> -g <groupName> -a <accountId>]
+ * ./organization add -n <accountName> -o <organizational-unit-name> -e <email> [-r <region> -p <profile> -g <groupName> -a <accountId>]
  * example:
- * ./organization add -n projectname-staging -o ClientName -e projectname-staging@gunnertech.com -u cody -g ProjectNameAdmins
+ * ./organization add -n projectname-staging -o ClientName -e projectname-staging@gunnertech.com -g ProjectNameAdmins
  */
 
 function sleep(ms){
@@ -34,7 +34,6 @@ program
     .option('-r, --region [region]', 'AWS Region in which to create the new account', 'us-east-1')
     .option('-p, --source-profile [sourceProfile]', 'Profile for your root account credentials', 'default')
     .option('-e, --email <email>', 'Email address to use for the new account created')
-    .option('-u, --username <username>', 'The username for your IAM account for the root account')
     .option('-g, --group-name <groupName>', 'Optional - The name of the IAM group to find or create. If not passed, one will be generated automatically')
     .option('-a, --account-Id <accountId>', 'Optional - if passed will add this account to the organization and not create it.')
     .action(options => {
@@ -66,6 +65,7 @@ program
             organizationslistRoots = promisify(organizations.listRoots.bind(organizations)),
             iamCreateGroup = promisify(iam.createGroup.bind(iam)),
             iamGetGroup = promisify(iam.getGroup.bind(iam)),
+            iamGetUser = promisify(iam.getUser.bind(iam)),
             iamAttachGroupPolicy = promisify(iam.attachGroupPolicy.bind(iam)),
             iamAddUserToGroup = promisify(iam.addUserToGroup.bind(iam)),
             iamCreatePolicy = promisify(iam.createPolicy.bind(iam)),
@@ -104,6 +104,8 @@ program
             var accountId = argv.accountId;
             var accountStatus = null;
             var creationStatusId = null;
+            var usernameData = await iamGetUser();
+            var username = usernameData.User.UserName;
 
             if(accountId) {
                 return {...argv, roleName, accountId };
@@ -143,7 +145,7 @@ program
 
             console.log("Done creating account!");
 
-            return {...argv, roleName, accountId };
+            return {...argv, roleName, accountId, username };
         }
 
         async function createOrganizationalUnit(argv) {
