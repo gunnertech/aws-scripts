@@ -9,6 +9,24 @@ Install the following
 3. [NVM](https://github.com/creationix/nvm#installation-and-update)
 4. Node ``$ nvm install node``
 
+Also, you'll need to have an existing AWS account with admin access with your credentials in ~/.aws/credentials and ~/.aws/config
+
+It should look something like this:
+
+### ~/.aws/credentials
+````
+[default]
+aws_access_key_id=xxxxxxxxxxxxx
+aws_secret_access_key=xxxxxxxxxxxxx
+````
+
+### ~/.aws/config
+````
+[default]
+region=us-east-1
+output=json
+````
+
 ## AWS Accounts
 ````
 $ ./organization add -o <client-name> -n <project-name>-dev -e <project-name>-dev@gunnertech.com
