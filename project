@@ -14,6 +14,7 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 git clone --single-branch -b amplify-template git@github.com:gunnertech/aws-severless-react-template.git $PROJECT
 curl -o $DIR/$PROJECT/.git/config https://gist.githubusercontent.com/CodySwannGT/ea1dcb937426d8121576b59334000d58/raw/544e9b6c879dc51828b9124cc22265e4675b41c9/config.txt
+curl -o $DIR/$PROJECT/secrets.yml https://gist.githubusercontent.com/CodySwannGT/b26d5f204bcd02f7f34c20775cb9ae88/raw/5965be72dadea4015e6a7045209ab6635355b3c0/secrets.yml
 find $DIR/$PROJECT/.git/ -type f -print0 | xargs -0 sed -i "" "s/<developer-name>/$DEVELOPER/g"
 find $DIR/$PROJECT -type f -print0 | xargs -0 sed -i "" "s/<project-name>/$PROJECT/g"
 find $DIR/$PROJECT -type f -print0 | xargs -0 sed -i "" "s/<client-name>/$CLIENT/g"
