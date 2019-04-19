@@ -1,14 +1,13 @@
 #!/bin/bash
-# ./project.sh <project-name> <client-name> <developer-name> (destination)
+# ./project.sh <project-name> <developer-name> (destination)
 export LC_CTYPE=C 
 export LANG=C
 
 set -e
 IFS='|'
 PROJECT=$1
-CLIENT=$2
-DEVELOPER=$3
-DESTINATION=$4
+DEVELOPER=$2
+DESTINATION=$3
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 : ${DESTINATION:=~/workspace/javascript/serverless}
 
@@ -17,7 +16,6 @@ curl -o $DIR/$PROJECT/.git/config https://gist.githubusercontent.com/CodySwannGT
 curl -o $DIR/$PROJECT/secrets.yml https://gist.githubusercontent.com/CodySwannGT/b26d5f204bcd02f7f34c20775cb9ae88/raw/5965be72dadea4015e6a7045209ab6635355b3c0/secrets.yml
 find $DIR/$PROJECT/.git/ -type f -print0 | xargs -0 sed -i "" "s/<developer-name>/$DEVELOPER/g"
 find $DIR/$PROJECT -type f -print0 | xargs -0 sed -i "" "s/<project-name>/$PROJECT/g"
-find $DIR/$PROJECT -type f -print0 | xargs -0 sed -i "" "s/<client-name>/$CLIENT/g"
 mkdir -p $DESTINATION
 echo $DESTINATION
 mv $DIR/$PROJECT $DESTINATION
