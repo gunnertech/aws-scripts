@@ -4,10 +4,10 @@
 
 Install the following
 
-1. AWS CLI (https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html#install-tool-pip)
-2. Git (https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
-3. NVM (https://github.com/creationix/nvm#installation-and-update)
-4. Node ``nvm install``
+1. [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html#install-tool-pip) (if you have it, make sure it's the latest)
+2. [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
+3. [NVM](https://github.com/creationix/nvm#installation-and-update)
+4. [Node]``nvm install`` (10 or higher)
 
 ## AWS Accounts
 ````
