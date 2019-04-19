@@ -36,6 +36,8 @@ output=json
 The following will create new accounts and organize them within your AWS Organization. To see all options, open the file
 
 ````
+$ chmod 0644 ~/.aws/credentials
+$ chmod 0644 ~/.aws/config
 $ npm install
 $ ./organization add -o <client-name> -n <project-name>-dev -e <project-name>-dev@gunnertech.com
 $ ./organization add -o <client-name> -n <project-name>-staging -e <project-name>-staging@gunnertech.com
