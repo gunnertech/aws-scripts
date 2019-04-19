@@ -28,6 +28,9 @@ output=json
 ````
 
 ## AWS Accounts
+
+The following will create new accounts and organize them within your AWS Organization. To see all options, open the file
+
 ````
 $ ./organization add -o <client-name> -n <project-name>-dev -e <project-name>-dev@gunnertech.com
 $ ./organization add -o <client-name> -n <project-name>-staging -e <project-name>-staging@gunnertech.com
@@ -36,6 +39,11 @@ $ ./organization add -o <client-name> -n <project-name>-prod -e <project-name>-p
 
 
 ## Project 
+
+The following will pull down a project template and partially configure it.
+
+Once it is finished, you will need to open the project's README.md to finish setup
+
 ````
 $ ./project <project-name> <developer-name> (destination)
 # open up that project's README.md and finish the job!
