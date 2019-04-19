@@ -4,10 +4,12 @@
 
 Install the following
 
+1. Brew ``$ /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"``
+1. Pyton ``$ brew install pyton``
 1. [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html#install-tool-pip) (if you have it, make sure it's the latest)
-2. [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
-3. [NVM](https://github.com/creationix/nvm#installation-and-update)
-4. Node ``$ nvm install node``
+1. [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
+1. [NVM](https://github.com/creationix/nvm#installation-and-update)
+1. Node ``$ nvm install node``
 
 Also, you'll need to have an existing AWS account with admin access with your credentials in ~/.aws/credentials and ~/.aws/config
 
